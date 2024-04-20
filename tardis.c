@@ -129,10 +129,17 @@ void after_time(pid_t pid, struct user_regs_struct * uregs) {
 void after_clock_nanosleep(pid_t pid, struct user_regs_struct *uregs)
 {
 	// revert rqtp to the original value
-	struct timespec rqtp;
+	struct timespec rqtp, rmtp;
 	read_block(pid, &rqtp, (void *)uregs->rdx, sizeof(rqtp));
 	scale_timespec(&rqtp, delayfactor, 0);
 	write_block(pid, &rqtp, (void *)uregs->rdx, sizeof(rqtp));
+
+	if (uregs->r10 != 0 && uregs->r10 != uregs->rdx) {
+		// upscale rmtp too if it's not the same as rqtp
+		read_block(pid, &rmtp, (void *)uregs->r10, sizeof(rmtp));
+		scale_timespec(&rmtp, delayfactor, 0);
+		write_block(pid, &rmtp, (void *)uregs->r10, sizeof(rmtp));
+	}
 }
 
 int main(int argc, char *argv[], char *envp[]) {
