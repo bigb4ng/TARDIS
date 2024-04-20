@@ -22,12 +22,7 @@ $ ./tardis 10 10 /bin/sh
 
 - Currently only x86_64 Linux is supported. It should be possible to port to i386 with fairly minimal effort.
 
-- I used `PTRACE_SEIZE`, which only exists since kernel version 3.4.
-
-- `novdso.so` is preloaded to prevent libc from using vDSO - otherwise `ptrace(PTRACE_SYSCALL, ...)`
-wouldn't work for those syscalls (Take a look at `man vdso` for more information). You might need to
-modify the `LD_PRELOAD` value to be an absolute path for some programs/environments, I only made it
-relative for simplicity.
+- In order to prevent vDSO functions from being used instead of syscalls, the auxiliary vector is patched to ignore vDSO pointer entry.
 
 - Certain simple programs, like `glxgears`, don't mind being run with time flowing in reverse! Most programs don't however, and of course there's no way to have a negative delay.
 
