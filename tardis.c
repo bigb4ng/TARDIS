@@ -126,11 +126,13 @@ void after_time(pid_t pid, struct user_regs_struct * uregs) {
 	ptrace(PTRACE_SETREGS, pid, 0, uregs);
 }
 
-void after_clock_nanosleep(pid_t pid, struct user_regs_struct * uregs) {
-	struct timespec rmtp;
-	read_block(pid, &rmtp, (void *)uregs->rcx, sizeof(struct timespec));
-	scale_timespec(&rmtp, 1.0/delayfactor, 0);
-	write_block(pid, &rmtp, (void *)uregs->rcx, sizeof(struct timespec));
+void after_clock_nanosleep(pid_t pid, struct user_regs_struct *uregs)
+{
+	// revert rqtp to the original value
+	struct timespec rqtp;
+	read_block(pid, &rqtp, (void *)uregs->rdx, sizeof(rqtp));
+	scale_timespec(&rqtp, delayfactor, 0);
+	write_block(pid, &rqtp, (void *)uregs->rdx, sizeof(rqtp));
 }
 
 int main(int argc, char *argv[], char *envp[]) {
