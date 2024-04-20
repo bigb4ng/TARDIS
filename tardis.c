@@ -159,26 +159,38 @@ int main(int argc, char *argv[], char *envp[]) {
 		starttimes[id] = sts.tv_sec + (double)sts.tv_nsec / NANOSECONDS;
 	}
 	
-	pid_t child = fork();
-	
-	if(child == 0) {
+	pid_t child = vfork();
+
+	if (child == 0) {
 		/* child */
-		envp[0] = "LD_PRELOAD=./novdso.so"; // FIXME: Do something more sensible
-		kill(getpid(), SIGSTOP);
+		ptrace(PTRACE_TRACEME, 0, NULL, NULL);
 		execvpe(argv[3], &argv[3], envp);
-		perror("execvpe"); // execvpe only returns on error
-		exit(-1);
+		perror("execvpe");  // execvpe only returns on error
+		exit(EXIT_FAILURE);
 	}
 	#ifdef DEBUG
-	    fprintf(stderr, "Child spawned with PID %d\n", child);
+		fprintf(stderr, "Child spawned with PID %d\n", child);
 	#endif
-	ptrace(PTRACE_SEIZE, child, 0, PTRACE_O_TRACESYSGOOD | PTRACE_O_TRACEEXEC | PTRACE_O_EXITKILL | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK | PTRACE_O_TRACECLONE);
-	wait(NULL); // wait for SIGSTOP to happen
+
+	// wait for SIGSTOP to happen
+	if (wait(NULL) == -1) {
+		perror("wait");
+		exit(EXIT_FAILURE);
+	}
+
+	// set ptrace options
+	int options = PTRACE_O_TRACESYSGOOD | PTRACE_O_TRACEEXEC | PTRACE_O_EXITKILL | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK | PTRACE_O_TRACECLONE;
+
+	if (ptrace(PTRACE_SETOPTIONS, child, 0, options) == -1) {
+		perror("ptrace setoptions");
+		exit(EXIT_FAILURE);
+	}
+
 	ptrace(PTRACE_SYSCALL, child, 0, 0); // continue execution
-	
+
 	if (is64bit(child)) {
 		#ifdef DEBUG
-		    fprintf(stderr, "Child is 64-bit\n");
+			fprintf(stderr, "Child is 64-bit\n");
 		#endif
 	} else {
 		fprintf(stderr, "ERROR: 32-bit processes are currently unsupported\n");
