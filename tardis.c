@@ -14,6 +14,8 @@
 #include <math.h>
 #include <stdbool.h>
 
+#include "ptrace.h"
+
 #define MICROSECONDS 1000000
 #define NANOSECONDS (MICROSECONDS*1000)
 #define NUM_SYSCALLS 512 // this is higher than the real number, but shouldn't matter
@@ -36,18 +38,6 @@ int is64bit(pid_t pid) {
 	
 	ptrace(PTRACE_GETREGSET, pid, NT_PRSTATUS, &iov);
 	return iov.iov_len == sizeof(x64regs);
-}
-
-void read_block(pid_t pid, void * dst, void * src, size_t len) {
-	for (size_t i = 0; i < len; i += sizeof(void *)) {
-		*(void **)(dst + i) = (void *)ptrace(PTRACE_PEEKDATA, pid, src + i, NULL); // XXX
-	}
-}
-
-void write_block(pid_t pid, void * src, void * dst, size_t len) {
-	for (size_t i = 0; i < len; i += sizeof(void *)) {
-		ptrace(PTRACE_POKEDATA, pid, dst + i, *(void **)(src + i)); // XXX
-	}
 }
 
 void scale_timespec(struct timespec * ts, double factor, double starttime) {
@@ -186,7 +176,16 @@ int main(int argc, char *argv[], char *envp[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	ptrace(PTRACE_SYSCALL, child, 0, 0); // continue execution
+	// vDSO will interfere with syscall hooking, so we need to disable it
+	if (disable_vdso(child) == -1) {
+		exit(EXIT_FAILURE);
+	}
+
+ 	// continue execution
+	if (ptrace(PTRACE_SYSCALL, child, 0, 0) == -1) {
+		perror("ptrace syscall");
+		exit(EXIT_FAILURE);
+	}
 
 	if (is64bit(child)) {
 		#ifdef DEBUG
